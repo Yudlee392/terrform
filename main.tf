@@ -8,47 +8,24 @@ resource "aws_vpc" "fresher_duylnd_vpc" {
     Name = "fresher-duylnd-terraform"
   }
 }
-
-# Tạo Public và Private Subnets
-resource "aws_subnet" "fresher_duylnd_public_az1" {
-  vpc_id            = aws_vpc.fresher_duylnd_vpc.id
-  cidr_block        = "10.0.1.0/24"
-  availability_zone = "us-west-2a"
-  map_public_ip_on_launch = true
-
-  tags = {
-    Name = "fresher-duylnd-public-az1"
+# Create subnets
+locals {
+  subnets = {
+    "public_az1" = { cidr_block = "10.0.1.0/24", az = "us-west-2a", public = true },
+    "private_az1" = { cidr_block = "10.0.2.0/24", az = "us-west-2a", public = false },
+    "public_az2" = { cidr_block = "10.0.3.0/24", az = "us-west-2b", public = true },
+    "private_az2" = { cidr_block = "10.0.4.0/24", az = "us-west-2b", public = false }
   }
 }
-
-resource "aws_subnet" "fresher_duylnd_private_az1" {
+resource "aws_subnet" "fresher_duylnd_subnet" {
+  for_each          = local.subnets
   vpc_id            = aws_vpc.fresher_duylnd_vpc.id
-  cidr_block        = "10.0.2.0/24"
-  availability_zone = "us-west-2a"
+  cidr_block        = each.value.cidr_block
+  availability_zone = each.value.az
+  map_public_ip_on_launch = each.value.public
 
   tags = {
-    Name = "fresher-duylnd-private-az1"
-  }
-}
-
-resource "aws_subnet" "fresher_duylnd_public_az2" {
-  vpc_id            = aws_vpc.fresher_duylnd_vpc.id
-  cidr_block        = "10.0.3.0/24"
-  availability_zone = "us-west-2b"
-  map_public_ip_on_launch = true
-
-  tags = {
-    Name = "fresher-duylnd-public-az2"
-  }
-}
-
-resource "aws_subnet" "fresher_duylnd_private_az2" {
-  vpc_id            = aws_vpc.fresher_duylnd_vpc.id
-  cidr_block        = "10.0.4.0/24"
-  availability_zone = "us-west-2b"
-
-  tags = {
-    Name = "fresher-duylnd-private-az2"
+    Name = "fresher-duylnd-${each.key}"
   }
 }
 
@@ -82,26 +59,12 @@ resource "aws_route_table" "fresher_duylnd_private_rt" {
     Name = "fresher-duylnd-private-rt"
   }
 }
-# Route Table Public cho các subnet public
-resource "aws_route_table_association" "fresher_duylnd_public_rt_assoc_az1" {
-  subnet_id      = aws_subnet.fresher_duylnd_public_az1.id
-  route_table_id = aws_route_table.fresher_duylnd_public_rt.id
-}
+#Route Table Association
+resource "aws_route_table_association" "fresher_duylnd_rta" {
+  for_each = aws_subnet.fresher_duylnd_subnet
 
-resource "aws_route_table_association" "fresher_duylnd_public_rt_assoc_az2" {
-  subnet_id      = aws_subnet.fresher_duylnd_public_az2.id
-  route_table_id = aws_route_table.fresher_duylnd_public_rt.id
-}
-
-# Route Table Private cho các subnet private
-resource "aws_route_table_association" "fresher_duylnd_private_rt_assoc_az1" {
-  subnet_id      = aws_subnet.fresher_duylnd_private_az1.id
-  route_table_id = aws_route_table.fresher_duylnd_private_rt.id
-}
-
-resource "aws_route_table_association" "fresher_duylnd_private_rt_assoc_az2" {
-  subnet_id      = aws_subnet.fresher_duylnd_private_az2.id
-  route_table_id = aws_route_table.fresher_duylnd_private_rt.id
+  subnet_id      = each.value.id
+  route_table_id = each.value.public ? aws_route_table.fresher_duylnd_public_rt.id : aws_route_table.fresher_duylnd_private_rt.id
 }
 
 # Tạo NAT Instance cho Private Subnet
